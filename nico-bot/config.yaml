@@ -1,5 +1,5 @@
 # Nico Discord Bot Configuration
-bot_token: "MTUwODI1MDg0NDQ0MzcwNTM1NA.G117lO.lES1SP8wYIc_onfmnbM4y8WmoZlsN82ZJEq92I"
+bot_token: "${DISCORD_BOT_TOKEN}"  # Read from Railway env var BOT_TOKEN
 channel_id: 1499439110593450095  # #lab-brew
 allowed_channels:
   - 1499439110593450095  # #lab-brew

@@ -1,0 +1,22 @@
+# Nico Trading Strategy Configuration
+strategy:
+  name: "Markov Regime + Red Day DCA"
+  author: "Nico Team"
+  lookback_window: 20
+  bull_threshold: 5.0
+  bear_threshold: 5.0
+  min_regime_hold: 4
+
+risk:
+  max_drawdown_pct: 15.0
+  max_concurrent_positions: 12
+  min_sharpe_score: 1.0
+  target_return_30d_pct: 20.0
+
+dca:
+  budget: 50000.0
+  currency: USD
+  assets: ["BTC-USD", "ETH-USD", "SPY"]
+  max_triggers: 15
+  trigger_threshold: -0.02  # Buy if daily return < -2%
+  take_profit_threshold: 0.15  # Sell if regime is Bull and profit > 15%

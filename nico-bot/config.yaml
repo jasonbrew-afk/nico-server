@@ -1,0 +1,14 @@
+# Nico Discord Bot Configuration
+bot_token: "MTUwODI1MDg0NDQ0MzcwNTM1NA.G117lO.lES1SP8wYIc_onfmnbM4y8WmoZlsN82ZJEq92I"
+channel_id: 1499439110593450095  # #lab-brew
+allowed_channels:
+  - 1499439110593450095  # #lab-brew
+
+# Asset Universe (Crypto + Equities with P/E < 50x)
+asset_universe:
+  - crypto
+  - equities
+
+equity_filters:
+  pe_max: 50
+  min_market_cap: 5000000  # $5M to avoid penny stocks

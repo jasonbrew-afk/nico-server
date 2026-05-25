@@ -6,3 +6,4 @@ numpy
 pandas
 pyyaml
 pydantic
+alpaca-py

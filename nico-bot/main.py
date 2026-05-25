@@ -8,6 +8,7 @@ Commands:
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import discord
@@ -26,10 +27,10 @@ class NicoClient(discord.Client):
         self.channel = None
 
     def _load_config(self):
-        if CONFIG_PATH.exists():
-            with open(CONFIG_PATH) as f:
-                return yaml.safe_load(f)
-        return {"bot_token": "YOUR_TOKEN_HERE", "channel_id": None}
+        return {
+            "bot_token": os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE"),
+            "channel_id": os.environ.get("CHANNEL_ID"),
+        }
 
     async def on_ready(self):
         self.channel = self.get_channel(int(self.config.get('channel_id', 0)))

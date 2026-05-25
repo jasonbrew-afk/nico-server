@@ -1,4 +1,4 @@
-"""Nico Server - FastAPI Webhook Relay (v0.1.1)
+"""Nico Server - FastAPI Webhook Relay (v0.1.2)
 
 Acts as the "eyes" of Nico: receives signals from TradingView
 and relays them to the local `nico-core` engine.

@@ -7,18 +7,39 @@ Commands:
 """
 
 import asyncio
+import datetime
 import json
 import os
+import zoneinfo
 from pathlib import Path
 
 import discord
 import pandas as pd
 import yaml
+from discord.ext import tasks
 
 # Configuration
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 OUTPUT_PATH = Path(__file__).parent.parent / "nico-core" / "output.json"
 TRADES_PATH = Path(__file__).parent / "trades.json"
+
+
+def _parse_summary_time():
+    """Post time for the daily summary; override via NICO_DAILY_SUMMARY_TIME=HH:MM (ET)."""
+    raw = os.environ.get("NICO_DAILY_SUMMARY_TIME", "16:15")
+    hh, mm = (int(x) for x in raw.split(":"))
+    return datetime.time(hour=hh, minute=mm, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
+
+
+DAILY_SUMMARY_TIME = _parse_summary_time()
+
+
+class _ChannelContext:
+    """Minimal ctx-like wrapper so existing handlers work with just a channel handle."""
+
+    def __init__(self, channel):
+        self.channel = channel
+        self.send = channel.send
 
 class NicoClient(discord.Client):
     def __init__(self, *args, **kwargs):
@@ -36,8 +57,27 @@ class NicoClient(discord.Client):
         self.channel = self.get_channel(int(self.config.get('channel_id', 0)))
         if self.channel:
             print(f"Logged in as {self.user} | Connected to #{self.channel.name}")
+            # Guard against double-start on Discord reconnects (on_ready can fire repeatedly).
+            if not self.daily_summary.is_running():
+                self.daily_summary.start()
+                print(f"Daily summary scheduled for {DAILY_SUMMARY_TIME.strftime('%H:%M')} ET")
         else:
             print("Could not find channel. Check config.yaml.")
+
+    @tasks.loop(time=DAILY_SUMMARY_TIME)
+    async def daily_summary(self):
+        """Post a status + trades summary after US market close (default 4:15 PM ET)."""
+        if not self.channel:
+            return
+        await self.channel.send(
+            "📊 **Daily Summary — " + datetime.date.today().isoformat() + "**"
+        )
+        ctx_proxy = _ChannelContext(self.channel)
+        try:
+            await self._handle_status(ctx_proxy)
+            await self._handle_trades(ctx_proxy)
+        except Exception as e:
+            await self.channel.send(f"⚠️ Daily summary failed: {e}")
 
     async def on_command(self, ctx, command):
         """Handle slash commands or prefix commands."""

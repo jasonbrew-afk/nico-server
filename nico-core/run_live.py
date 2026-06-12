@@ -50,6 +50,7 @@ sys.path.insert(0, str(project_root))
 from nico_core.data import fetch_ohlcv
 from nico_core.dca import DCAStrategy
 from nico_core.alpaca_execution import AlpacaExecution
+from nico_core import state_client
 from platforms.robinhood.mcp_adapter import get_execution_backend
 from platforms.robinhood import approval as rh_approval
 
@@ -143,13 +144,35 @@ def run_live(
     print(f"Daily return: {daily_return*100:.2f}%")
     print(f"Last bar: {timestamp.date()}\n")
 
-    # Check if we already traded today
+    # Load state. Shared Postgres store (via nico-server) is the source of truth
+    # when configured; otherwise fall back to the legacy local live_state.json.
     state = load_state()
-    last_run = state.get("last_run")
     today_str = datetime.utcnow().strftime("%Y-%m-%d")
 
-    if last_run == today_str:
-        print(f"Already traded today ({last_run}). Skipping.\n")
+    # Real-money (gated) backends fail closed if the shared state is unreadable;
+    # the legacy Alpaca path falls back to local state so a state-API hiccup never
+    # blocks normal trading.
+    gated_backend = rh_approval.approval_required(EXECUTION_BACKEND)
+    remote = None
+    if state_client.enabled():
+        try:
+            remote = state_client.get_state()
+        except Exception as e:
+            if gated_backend:
+                print(f"ERROR: could not read shared state API (refusing real-money "
+                      f"trade rather than risk double-spend): {e}\n")
+                return
+            print(f"WARN: shared state API unreadable; falling back to local state: {e}\n")
+
+    if remote is not None:
+        # last_run = last placement; last_emitted = last intent sent for approval.
+        # Skip if either happened today, so reruns don't double-place or re-emit.
+        if remote.get("last_run") == today_str or remote.get("last_emitted") == today_str:
+            print(f"Already acted today (run={remote.get('last_run')}, "
+                  f"emitted={remote.get('last_emitted')}). Skipping.\n")
+            return
+    elif state.get("last_run") == today_str:
+        print(f"Already traded today ({state.get('last_run')}). Skipping.\n")
         return
 
     # Initialize DCA strategy
@@ -163,6 +186,11 @@ def run_live(
         allocation_per_asset=dca_cfg.get("allocation_per_asset", 0.3333),
         min_trade_usd=dca_cfg.get("min_trade_usd", 5.0),
     )
+
+    # Rehydrate progress from the shared source of truth so budget math is correct.
+    if remote is not None:
+        dca.state.triggers_used = int(remote.get("triggers_used", 0))
+        dca.state.spent = float(remote.get("spent", 0.0))
 
     # Check if red day trigger is active
     is_red_day = daily_return < dca.state.trigger_threshold
@@ -233,6 +261,24 @@ def run_live(
                         remaining_budget=dca.state.remaining_budget - allocation,
                     ),
                 )
+                # Persist the intent to the shared source of truth FIRST, so the
+                # row exists when the bot later reports the fill. If the state API
+                # is configured but unreachable, refuse to trade (fail-closed).
+                if state_client.enabled():
+                    try:
+                        state_client.post_pending({
+                            "request_id": order_req.request_id,
+                            "symbol": order_req.symbol,
+                            "side": order_req.side,
+                            "qty": order_req.qty,
+                            "notional_usd": order_req.notional_usd,
+                            "price": order_req.price,
+                            "rationale": order_req.rationale,
+                            "trigger_number": order_req.trigger_number,
+                        })
+                    except Exception as e:
+                        print(f"    ❌ Could not persist pending order to state API — NOT trading: {e}")
+                        return
                 try:
                     req_id = rh_approval.request_approval(order_req)
                     parked = True

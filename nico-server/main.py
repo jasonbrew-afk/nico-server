@@ -19,7 +19,7 @@ from typing import Optional
 
 import httpx
 import yaml
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, HTTPException
 from pydantic import BaseModel
 from alpaca.trading.client import TradingClient
 
@@ -73,9 +73,74 @@ class AlpacaAlert(BaseModel):
 # --- App ---
 app = FastAPI(title="Nico Server", version="0.2.0")
 
+import state_store  # Postgres-backed DCA state (disabled when DATABASE_URL unset)
+
+
+@app.on_event("startup")
+async def _state_startup():
+    try:
+        await state_store.init_pool()
+        if state_store.enabled():
+            logger.info("DCA state store: connected (Postgres)")
+        else:
+            logger.info("DCA state store: disabled (no DATABASE_URL)")
+    except Exception as e:
+        logger.error(f"DCA state store init failed: {e}")
+
+
+@app.on_event("shutdown")
+async def _state_shutdown():
+    await state_store.close_pool()
+
+
+def _require_state(request: Request) -> None:
+    """Gate state endpoints: 503 if the store is off, 401 on a bad token."""
+    if not state_store.enabled():
+        raise HTTPException(status_code=503, detail="state store disabled")
+    expected = os.getenv("NICO_STATE_TOKEN", "")
+    if not expected or request.headers.get("Authorization") != f"Bearer {expected}":
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "uptime": time.time()}
+
+
+@app.get("/state")
+async def get_state(request: Request):
+    _require_state(request)
+    return await state_store.get_state()
+
+
+@app.get("/pending")
+async def get_pending(request: Request):
+    _require_state(request)
+    return {"pending": await state_store.list_pending()}
+
+
+@app.post("/pending")
+async def post_pending(request: Request):
+    """run_live posts an order intent (parked, awaiting Imago approval)."""
+    _require_state(request)
+    order = await request.json()
+    required = {"request_id", "symbol", "side", "qty"}
+    if not required.issubset(order):
+        raise HTTPException(status_code=400, detail=f"missing fields: {required - set(order)}")
+    return await state_store.record_pending(order)
+
+
+@app.post("/placed")
+async def post_placed(request: Request):
+    """nico-bot posts a confirmed fill; spend/triggers advance here (once)."""
+    _require_state(request)
+    body = await request.json()
+    request_id = body.get("request_id")
+    if not request_id:
+        raise HTTPException(status_code=400, detail="missing request_id")
+    return await state_store.record_placed(
+        request_id, body.get("order_id", ""), body.get("order_status", ""),
+    )
 
 @app.post("/webhook/tradingview")
 async def tradingview_webhook(request: Request):

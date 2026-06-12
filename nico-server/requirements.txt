@@ -7,3 +7,5 @@ pandas
 pyyaml
 pydantic
 alpaca-py
+# DCA state store (Postgres source of truth; subsystem disabled without DATABASE_URL)
+asyncpg

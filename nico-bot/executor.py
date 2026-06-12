@@ -99,6 +99,35 @@ def _record_trade(order: dict, result) -> None:
     TRADES_PATH.write_text(json.dumps(trades, indent=2))
 
 
+async def _report_placed(request_id: str, order_id: str, order_status: str) -> None:
+    """POST the confirmed fill to nico-server's /placed (advances DCA state).
+
+    No-op if the state API isn't configured. Runs the blocking requests call off
+    the event loop. Never raises — the order is already placed."""
+    import asyncio
+    import requests
+
+    api = os.environ.get("NICO_STATE_API_URL", "")
+    if not api:
+        return
+    token = os.environ.get("NICO_STATE_TOKEN", "")
+
+    def _post():
+        return requests.post(
+            f"{api.rstrip('/')}/placed",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"request_id": request_id, "order_id": order_id, "order_status": order_status},
+            timeout=10,
+        )
+
+    try:
+        r = await asyncio.to_thread(_post)
+        if r.status_code >= 400:
+            print(f"[executor] /placed report failed ({r.status_code}): {r.text[:200]}")
+    except Exception as e:
+        print(f"[executor] /placed report error: {e}")
+
+
 def make_app(discord_client=None) -> web.Application:
     """Build the aiohttp app. discord_client (optional) lets us post fills to #lab-brew."""
     app = web.Application()
@@ -150,6 +179,11 @@ def make_app(discord_client=None) -> web.Application:
 
         _placed_request_ids.add(request_id)
         _record_trade({**order, "side": side}, result)
+
+        # Report the fill to nico-server so spend/triggers advance at the source of
+        # truth (idempotent server-side). Best-effort: the order is already placed,
+        # so a state-API hiccup must not fail the HTTP call — but log it loudly.
+        await _report_placed(request_id, result.order_id, result.status)
 
         # Post the fill to Discord (#lab-brew), best-effort.
         if discord_client is not None and getattr(discord_client, "channel", None):

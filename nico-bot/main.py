@@ -162,6 +162,22 @@ class NicoClient(discord.Client):
         
         await ctx.channel.send(embed=embed)
 
+async def _amain(client, token):
+    """Run the Discord client, plus the approval /execute HTTP server if enabled."""
+    runner = None
+    if os.environ.get("IMAGO_EXECUTE_TOKEN"):
+        from executor import start_http_server
+        runner = await start_http_server(client)  # reads client.channel at request time
+    else:
+        print("[executor] IMAGO_EXECUTE_TOKEN unset — /execute endpoint disabled")
+    try:
+        async with client:
+            await client.start(token)
+    finally:
+        if runner is not None:
+            await runner.cleanup()
+
+
 if __name__ == "__main__":
     intents = discord.Intents.default()
     intents.message_content = True
@@ -172,4 +188,4 @@ if __name__ == "__main__":
     if token == "YOUR_TOKEN_HERE":
         print("Please update nico-bot/config.yaml with your Discord Bot Token.")
     else:
-        client.run(token)
+        asyncio.run(_amain(client, token))

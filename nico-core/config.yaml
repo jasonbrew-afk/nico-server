@@ -1,11 +1,10 @@
-# Nico Trading Strategy Configuration
+# Nico Trading Strategy Configuration (DCA Only)
 strategy:
-  name: "Markov Regime + Red Day DCA"
+  name: "Red Day DCA"
   author: "Nico Team"
   lookback_window: 20
   bull_threshold: 5.0
   bear_threshold: 5.0
-  min_regime_hold: 4
 
 risk:
   max_drawdown_pct: 15.0
@@ -14,9 +13,14 @@ risk:
   target_return_30d_pct: 20.0
 
 dca:
-  budget: 50000.0
+  budget: 1500.0
   currency: USD
-  assets: ["BTC-USD", "ETH-USD", "SPY"]
-  max_triggers: 15
-  trigger_threshold: -0.02  # Buy if daily return < -2%
-  take_profit_threshold: 0.15  # Sell if regime is Bull and profit > 15%
+  assets: ["BTC/USD", "ETH/USD", "SPY"]  # Alpaca tickers (crypto uses / not -)
+  max_triggers: 30
+  trigger_threshold: -0.015  # Buy if daily return < -1.5% (slightly more sensitive)
+  allocation_per_asset: 0.3333  # Split evenly across assets
+  min_trade_usd: 5  # Minimum $5 per trade (Alpaca minimum)
+
+alpaca:
+  base_url: "https://paper-api.alpaca.markets"  # PAPER mode (safe)
+  paper: true  # Set to false ONLY when you explicitly confirm live

@@ -37,7 +37,11 @@ def fetch_ohlcv(ticker: str, years: int) -> Tuple[pd.Series, pd.DatetimeIndex]:
             # Handle MultiIndex columns from some yfinance versions
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
-            return df["Close"].dropna(), df.index
+            # Ensure we get a Series, not a DataFrame (single-column edge case)
+            close = df["Close"]
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+            return close.dropna(), df.index
 
         if attempt == 1:
             print("  ! yfinance returned empty data — retrying in 30s.")

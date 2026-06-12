@@ -1,9 +1,0 @@
-pyproject.toml
-nico_core/__init__.py
-nico_core/data.py
-nico_core/regime.py
-nico_core.egg-info/PKG-INFO
-nico_core.egg-info/SOURCES.txt
-nico_core.egg-info/dependency_links.txt
-nico_core.egg-info/requires.txt
-nico_core.egg-info/top_level.txt

@@ -37,7 +37,13 @@ def _load_dotenv():
                 s = line.strip()
                 if s and not s.startswith("#") and "=" in s:
                     k, v = s.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+                    v = v.strip()
+                    q = v[:1]
+                    if q in ("'", '"'):
+                        v = v[1:].split(q, 1)[0]
+                    elif " #" in v:
+                        v = v.split(" #", 1)[0].rstrip()
+                    os.environ.setdefault(k.strip(), v)
             break
 
 

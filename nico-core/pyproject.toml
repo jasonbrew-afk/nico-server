@@ -13,6 +13,8 @@ dependencies = [
 
 [project.optional-dependencies]
 hmm = ["hmmlearn>=0.3"]
+# Robinhood MCP execution backend (NICO_EXECUTION_BACKEND=robinhood_mcp)
+robinhood = ["mcp>=1.9"]
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -23,6 +23,23 @@ from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel
 from alpaca.trading.client import TradingClient
 
+
+def _load_dotenv():
+    """Local-dev: load the nearest .env without overriding real env vars. No-op if absent."""
+    here = Path(__file__).resolve()
+    for d in (here.parent, *here.parents):
+        f = d / ".env"
+        if f.is_file():
+            for line in f.read_text().splitlines():
+                s = line.strip()
+                if s and not s.startswith("#") and "=" in s:
+                    k, v = s.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            break
+
+
+_load_dotenv()
+
 # --- Configuration ---
 LOCAL_NICO_CORE_URL = os.getenv("NICO_CORE_URL", "http://localhost:8001")
 ALLOWED_IPS = os.getenv("ALLOWED_IPS", "").split(",")  # Optional IP allowlist

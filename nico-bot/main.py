@@ -18,6 +18,23 @@ import pandas as pd
 import yaml
 from discord.ext import tasks
 
+
+def _load_dotenv():
+    """Local-dev: load the nearest .env without overriding real env vars. No-op if absent."""
+    here = Path(__file__).resolve()
+    for d in (here.parent, *here.parents):
+        f = d / ".env"
+        if f.is_file():
+            for line in f.read_text().splitlines():
+                s = line.strip()
+                if s and not s.startswith("#") and "=" in s:
+                    k, v = s.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            break
+
+
+_load_dotenv()
+
 # Configuration
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 OUTPUT_PATH = Path(__file__).parent.parent / "nico-core" / "output.json"

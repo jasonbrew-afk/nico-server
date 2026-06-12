@@ -25,6 +25,24 @@ from pathlib import Path
 import yaml
 import pandas as pd
 
+
+def _load_dotenv():
+    """Local-dev: load the nearest .env (walk up to repo root) without overriding
+    real env vars. No-op if absent (e.g. on Railway, where vars come from the dashboard)."""
+    here = Path(__file__).resolve()
+    for d in (here.parent, *here.parents):
+        f = d / ".env"
+        if f.is_file():
+            for line in f.read_text().splitlines():
+                s = line.strip()
+                if s and not s.startswith("#") and "=" in s:
+                    k, v = s.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            break
+
+
+_load_dotenv()
+
 # Add project root to path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))

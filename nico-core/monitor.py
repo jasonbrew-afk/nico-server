@@ -6,11 +6,28 @@ import json
 import logging
 import os
 import requests
+from pathlib import Path
 from datetime import datetime, date
-from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import GetAssetsRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.data.requests import StockBarsRequest
+from alpaca.data.historical import StockHistoricalDataClient
+
+
+def _load_dotenv():
+    """Local-dev: load the nearest .env without overriding real env vars. No-op if absent."""
+    here = Path(__file__).resolve()
+    for d in (here.parent, *here.parents):
+        f = d / ".env"
+        if f.is_file():
+            for line in f.read_text().splitlines():
+                s = line.strip()
+                if s and not s.startswith("#") and "=" in s:
+                    k, v = s.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            break
+
+
+_load_dotenv()
 
 # Configuration
 SYMBOL = os.getenv("NICO_SYMBOL", "SPY")  # e.g. SPY, BTC-USD, TSLA
@@ -26,30 +43,29 @@ def monitor_red_day():
     """Check if the market closed red today and trigger an alert."""
     logger.info(f"Checking {SYMBOL} for Red Day via Alpaca...")
     
-    # Initialize Alpaca client
-    client = TradingClient(API_KEY=ALPACA_API_KEY, SECRET_KEY=ALPACA_SECRET_KEY, paper=ALPACA_PAPER)
-    
     try:
         # Request the last 2 bars to compare today's close vs open
+        data_client = StockHistoricalDataClient(api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY)
+        
         request_params = StockBarsRequest(
             symbol_or_symbols=SYMBOL,
             timeframe=TimeFrame.Day,
             start=datetime.now() - __import__("datetime").timedelta(days=3),
             end=datetime.now()
         )
-        bars = client.get_stock_bars(request_params)
+        bars = data_client.get_stock_bars(request_params)
         
-        if not bars:
+        if not bars or not bars.data:
             logger.warning("No bars returned from Alpaca.")
             return
 
         # Get the latest bar (most recent trading day)
-        # Bars is a dict of symbol -> list of bars
-        if SYMBOL not in bars:
+        # bars.data is a dict of symbol -> list of bars
+        if SYMBOL not in bars.data:
             logger.warning(f"No bar data for {SYMBOL}")
             return
             
-        bar_list = bars[SYMBOL]
+        bar_list = bars.data[SYMBOL]
         if len(bar_list) < 1:
             logger.warning("Insufficient bar data.")
             return

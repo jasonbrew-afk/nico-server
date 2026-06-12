@@ -4,6 +4,11 @@ __pycache__/
 nico-venv/
 *.egg-info/
 
+# Single env file — real secrets live here; .env.example is the committed template
+.env
+.env.*
+!.env.example
+
 # Robinhood MCP OAuth tokens (also stored under ~/.config/nico/ by default)
 robinhood-mcp-tokens.json
 .config/nico/
